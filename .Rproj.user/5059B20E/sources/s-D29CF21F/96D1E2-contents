@@ -1,0 +1,138 @@
+---
+title: "Client Exit Interviews Results"
+author: "Isaiah Nyabuto"
+date: "2/11/2019"
+output:
+  slidy_presentation: default
+  beamer_presentation: default
+  ioslides_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.width = 12, fig.height = 8)
+
+
+pacman::p_load('dplyr','tidyr','gapminder','ggplot2','ggalt','forcats','R.utils','png','ggpubr','scales','bbplot')
+
+cei_events <- read.csv("./cei_events.csv", stringsAsFactors = F)
+```
+
+
+##
+
+```{r cei_events, out.width="80%", warning=FALSE}
+cei_avg <- cei_events %>% 
+  group_by(country) %>%
+  summarise(avg_cost = mean(as.numeric(cost_of_service), na.rm = T))
+
+
+#' multiple bar graph
+
+
+avg_cos_bars <- ggplot(cei_avg, aes(x = country, y = avg_cost)) +
+  geom_bar(stat = "identity",
+           position = "identity",
+           fill = "#1380A1") + 
+  geom_hline(yintercept = 0, size = 1, colour = "#333333") +
+  bbc_style() + 
+  labs(title = "The average cost of family planning among clients 
+interviewed was $10.62 in 2017. El Salvador had the highest.",
+       subtitle = "Average cost of family planning service in 2017") +
+  theme(axis.text.x = element_text(size = 15)) +
+  geom_hline(yintercept = mean(cei_avg$avg_cost), size = 1, colour = "#FF0000", linetype = "dashed")
+
+
+
+#avg_cos_bars
+
+finalise_plot(avg_cos_bars,source_name = "Source: WHP Client Exit Interviews 2017", save_filepath = paste0(getwd(),"/Highest AVG COS by country.png"))
+
+
+
+
+```
+
+##
+```{r, out.width="80%"}
+cei_events$feeling_about_cost <- factor(cei_events$CEI.SRH.FP.TRK...How.did.you.feel.about.the.cost.of.your.services.,levels = unique(cei_events$CEI.SRH.FP.TRK...How.did.you.feel.about.the.cost.of.your.services.))
+roi_country <- cei_events %>%
+  group_by(country, feeling_about_cost) %>%
+  summarise(total_cost = sum(as.numeric(cost_of_service), na.rm = T))
+
+roi_bar <- ggplot(roi_country, aes(x=country, y= total_cost, fill = feeling_about_cost)) +
+  geom_bar(stat = "identity",
+           position = "fill") + 
+  geom_hline(yintercept = 0, size = 1, colour = "#333333") +
+  bbc_style() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_viridis_d(direction = -1) +
+  labs(title = "Majority of the clients interviewed gave positive feedback
+on the cost of service",
+       subtitle = "% of perception on the cost of service by countries in 2017") +
+  theme(legend.position = "top",
+        legend.justification  = "left",
+        axis.text.x = element_text(size = 15)) 
+
+finalise_plot(roi_bar,source_name = "Source: WHP Client Exit Interviews 2017", save_filepath = paste0(getwd(),"/feeling by cost of service.png"))
+
+```
+
+##
+
+```{r out.width="80%", warning=FALSE, fig.align="left"}
+
+#prepare data
+cei_feelings <- cei_events %>%
+  gather(Feeling,value, c(96:107,204)) 
+
+rank_map <- data.frame(name = c("5 - Very Pleased", "3 - Neutral","4 - Pleased","1 - Very Displeased","2 - Displeased"),
+                       code = c(5,3,4,1,2))
+# remap 
+cei_feelings$rank <- plyr::mapvalues(cei_feelings$value, from = rank_map$name, to = rank_map$code, warn_missing = F)
+cei_feelings <- cei_feelings %>%
+  select(country,Feeling,value,rank)
+
+feeling_map <- data.frame(name = unique(cei_feelings$Feeling),
+                          code = c("Caring and Concern of the provider",
+                                   "Caring and concern of staff other than the provider",
+                                   "Comfort of the waiting area",
+                                   "Cost of service",
+                                   "Friendliness of the provider",
+                                   "Friendliness of the staff other than the provider",
+                                   "Length of time provided to ask questions or clarify doubts",
+                                   "Privacy of body during service",
+                                   "Privacy of conversation during service",
+                                   "Privacy of records were given",
+                                   "Respect provided by the staff other than the provider",
+                                   "Length of time spent in the facility",
+                                   "Treatment as unmarried person"), 
+                          stringsAsFactors = F)
+
+cei_feelings$Feeling <- plyr::mapvalues(cei_feelings$Feeling, from = feeling_map$name, to = feeling_map$code, warn_missing = F)
+  
+cei_feelings$Feeling <- as.factor(cei_feelings$Feeling)
+cei_feelings$value <- as.factor(cei_feelings$value)
+cei_feelings$rank <- as.numeric(cei_feelings$rank)
+cei_feelings <- cei_feelings[order(cei_feelings$rank),]
+cei_feelings$Feeling <- factor(cei_feelings$Feeling, levels = levels(cei_feelings$Feeling))
+cei_feelings$value <- factor(cei_feelings$value, levels = levels(cei_feelings$value))
+
+cei_ordered_bars <- ggplot(cei_feelings, aes(x = Feeling, y = rank, label = rank)) +
+  geom_bar(stat = "identity", position = "fill",
+           aes(fill = value), width = .5) +
+  geom_hline(yintercept = 0, size = 1, colour = "#333333") + 
+  scale_y_continuous(labels = scales::percent) + 
+  bbc_style() +
+  scale_fill_viridis_d(direction = 1) +
+  coord_flip() + 
+  labs(title = "More than 80% of clients interviewed were happy,
+happy with the services recieved at the facility",
+       subtitle = "Perception about the services provided at the facility in 2017")+
+  theme(legend.position = "top",
+        legend.justification = "left",
+        panel.grid.major.x = element_line(colour = "#cbcbcb"),
+        panel.grid.major.y = element_blank(),
+        axis.text.y = element_text(size = 15),
+        legend.text = element_text(size = 10)) 
+finalise_plot(cei_ordered_bars, source_name = "Source: WHP Client Exit Interviews 2017", save_filepath = paste0(getwd(),"/clients_perception.png"))
+

@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1549040587529.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "BFCB6CD4",
+    "lastKnownWriteTime" : 1550651826,
+    "last_content_update" : 1550651826585,
+    "path" : "~/Documents/PSI Workspace/CEI/CEI.R",
+    "project_path" : "CEI.R",
+    "properties" : {
+        "cursorPosition" : "38,0",
+        "scrollLine" : "53",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

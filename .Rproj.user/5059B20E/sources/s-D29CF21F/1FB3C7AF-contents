@@ -1,0 +1,423 @@
+#'
+#'Prepare and Import Service Provision Events
+#'
+
+source("NG Data Import Prep.R")
+
+#'
+#'First confirm that all facilities are assigned to the program 
+#' 
+loginDHIS2(baseurl,username,password)
+program_r <- httr::GET(paste0(baseurl,"api/29/programs/b7dXdo2F35y"))
+program_d <- fromJSON(content(program_r,"text"))
+program_ous <- program_d$organisationUnits
+
+# load the uids matched 
+ng_matched_ous <- readxl::read_xlsx("./input/A360/NG/NG A360 Matched Ous.xlsx", sheet = "Sheet1")
+
+
+# update the program with 
+providers_ous_ids <- data.frame(id = unique(ng_matched_ous$id), stringsAsFactors = F)
+
+program_d$organisationUnits <- plyr::rbind.fill(program_d$organisationUnits, providers_ous_ids)
+program_d$organisationUnits <- unique(program_d$organisationUnits)
+
+update_program_d <- POST(paste0(baseurl,"api/metadata?importStrategy=UPDATE"),
+                         body = toJSON(list(programs = list(program_d)),auto_unbox = T),
+                         content_type_json())
+
+
+
+
+#'
+#'#'Get dataElements from NG RH Provider Client Records program 
+rh_r <- httr::GET(paste0(baseurl,"api/29/programStages/ainkgKtBFFQ?fields=name,programStageDataElements[id,name,dataElement[id,name]]"))
+rh_d <- jsonlite::fromJSON(content(rh_r, "text"))
+rh_des <- rh_d$programStageDataElements
+#save des
+write.csv(rh_des$dataElement,"./output/A360/NG/program_des.csv", row.names = F)
+data_des <- data.frame(name = names(oyo_sp_to_import),stringsAsFactors = F)
+write.csv(data_des,"./output/A360/NG/data_des.csv", row.names = F)
+
+
+
+#'
+#'Funtion to transform the current method
+transform_method_programs <- function(sp_df){
+  
+  # filter events with dates Aug - Dec
+  sp_df <- dplyr::filter(sp_df, `Date Calculation` >= as.Date("2018-08-01") & `Date Calculation` <= as.Date("2018-12-31"))
+  
+  # program entry
+  sp_df$`Program Entry Point`[sp_df$`Program Entry Point` == "LLH Class"] <- "9ja"
+  sp_df$`Program Entry Point`[sp_df$`Program Entry Point` %in% c("Walk-in Counseling","Walk-in counseling","walk-in Counseling","Walk - in Counselling")] <- "Provider"
+  sp_df$`Program Entry Point`[sp_df$`Program Entry Point` == "1-1 Counseling"] <- "DKT Call Center"
+  sp_df$`Program Entry Point`[sp_df$`Program Entry Point` == "Matasa Matan Arewa"] <- "MMA"
+  sp_df$`Program Entry Point`[sp_df$`Program Entry Point` == "Reach Out"] <- "ReachOut"
+  
+  # current method
+  sp_df$`Current Method`[sp_df$`Current Method` %in% c("0: No Method","0: NO Method")] <- "None"
+  sp_df$`Current Method`[sp_df$`Current Method` %in% c("1: IUCD","1: IUD")] <- "IUCD"
+  sp_df$`Current Method`[sp_df$`Current Method` %in% c("3b: Injection - Noristerat", "3a: Injection - Norigynon","NORISTERAT",
+                                                       "3d: Injection - Synapress", "3: Injection", "3c: Injection - Depo Provera")] <- "INJ"
+  sp_df$`Current Method`[sp_df$`Current Method` %in% c("4a: Pills - Microgynon", "4b: Pills - Combination3",
+                                                       "4: Pills", "4c: Pills - Escluston","5: Condoms")] <- "Pills"
+  
+  sp_df$`Current Method`[sp_df$`Current Method` %in% c("2a: Implant - Jadelle",
+                                                       "2b: Implant - Implanon","2: Implant")] <- "Implant"
+  
+  sp_df$`Current Method`[sp_df$`Current Method` %in% c("6b: Condom - Female","6a: Condom - Male")] <- "Condom"
+  
+  
+  #method recieved
+  sp_df$`Method Received`[sp_df$`Method Received` %in% c("3b: Injection - Noristerat","3B: Injection - Noristerat",
+                                                         "3b: injection - noristerat","3b: Injection - Noristerat,")] <- "INJ_Nor"
+  sp_df$`Method Received`[sp_df$`Method Received` == "6a: Condom - Male"] <- "Condoms"
+  sp_df$`Method Received`[sp_df$`Method Received` %in% c("2b: Implant - Implanon","2B: Implant - Implanon")]  <- "IMP_Implanon"
+  sp_df$`Method Received`[sp_df$`Method Received` %in% c("3c: Injection - Depo Provera","3C: Injection - Depo Provera")] <- "INJ_Depo"
+  sp_df$`Method Received`[sp_df$`Method Received` %in% c("0: No Method","0: NO Method" )] <- "None"
+  sp_df$`Method Received`[sp_df$`Method Received` == "2a: Implant - Jadelle"] <- "IMP_Jadelle"
+  sp_df$`Method Received`[sp_df$`Method Received` == "6b: Condom - Female"] <- "FemaleCondoms"
+  sp_df$`Method Received`[sp_df$`Method Received` == "1: IUCD"] <- "IUCD"
+  sp_df$`Method Received`[sp_df$`Method Received` == "7: Emergency pill"] <- "EC"
+  sp_df$`Method Received`[sp_df$`Method Received` == "3d: Injection - Synapress"] <- "INJ_Sayana"
+  sp_df$`Method Received`[sp_df$`Method Received` == "3a: Injection - Norigynon"] <- "INJ_Norigynon"
+  sp_df$`Method Received`[sp_df$`Method Received` == "2b: Implant - Implanon"] <- "IMP_Implanon"
+  sp_df$`Method Received`[sp_df$`Method Received` %in% c("4a: Pills - Microgynon","4c: Pills - Escluston","4A: Pills - Microgynon",
+                                                         "4b: Pills - Combination3","4: Pills" )] <- "OC"
+  sp_df$`Method Received`[sp_df$`Method Received` == "5: Cycle bead"] <- "CycleBeads"
+  
+  
+  
+  # EC or Condom at last sex
+  sp_df$`Used EC/Condoms last sex`[sp_df$`Used EC/Condoms last sex` %in% c("Neither","neither", "No")] <- "Neither"
+  sp_df$`Used EC/Condoms last sex`[sp_df$`Used EC/Condoms last sex` %in% c("Condom","condom","6b:comdom-female")] <- "Condoms"
+  sp_df$`Used EC/Condoms last sex`[sp_df$`Used EC/Condoms last sex` %in% c("Both EC and Condoms", "EC","3: Injection","4: Pills")] <- "Both"
+  
+  #preganancy 
+  sp_df$`Pregnant?`[sp_df$`Pregnant?` %in% c("Not Pregnant","Not Pregnat")] <- "NO"
+  sp_df$`Pregnant?`[sp_df$`Pregnant?` %in% c("Pregnant","Pregnat")] <- "YES"
+  sp_df$`Pregnant?`[is.na(sp_df$`Pregnant?`)] <- "UNK"
+  
+  # condom as a dual method
+  sp_df$`Received Condoms as a dual Method`[sp_df$`Received Condoms as a dual Method` %in% c("0: No Method","No","NO","4a: Pills - Microgynon","2b: Implant - Implanon")] <- "false"
+  sp_df$`Received Condoms as a dual Method`[sp_df$`Received Condoms as a dual Method` == "6a: Condom - Male"] <- "true"
+  sp_df$`Received Condoms as a dual Method`[sp_df$`Received Condoms as a dual Method` %in% c("6b: Condom - Female","6b:comdom-female","Yes","YES","Condom")] <- "true"
+  
+  # add the missing columans
+  sp_df$`Providers Name` <- rep("n/a (archive import)", nrow(sp_df))
+  sp_df$`Girls Name` <- rep("n/a (archive import)", nrow(sp_df))
+  
+  # convert NAs to blacks
+  sp_df <- sp_df %>% replace(., is.na(.), "")
+  
+  return(sp_df)
+  
+}
+
+program_des <- read.csv("./input/A360/NG/report 1.csv", stringsAsFactors = F)
+names(program_des) <- c("dhis_name", "dhis_id", "data_name")
+
+
+#'
+#'A function to convert the colnames to uids and remap orgUnits
+#' 
+des_map <- function(sp_df,program_des, ng_matched_ous){
+  names(sp_df) <- plyr::mapvalues(names(sp_df),
+                                  from = program_des$data_name,
+                                  to = program_des$dhis_id, warn_missing = F)
+  
+  sp_df$orgUnit <- plyr::mapvalues(sp_df$orgUnit,
+                                    from = ng_matched_ous$Facility,
+                                    to = ng_matched_ous$id,
+                                    warn_missing = F)
+  return(sp_df)
+}
+
+
+
+
+#'A function to convert the events to datavaleues
+#'@param sp_df a dataframe with wide events
+#'@retun a dataframe with two columns dataElement, value
+eventDataValues <- function(sp_df){
+  #gather 
+  sp_df <- tidyr::gather(sp_df,dataElement,value,
+                                   1:length(names(sp_df)),
+                                   -orgUnit,-eventDate) %>%
+    dplyr::select(-orgUnit,-eventDate)
+  return(sp_df)
+}
+
+#'
+#'A function to generate the payload
+#'@param sp_transformed a df
+#'@param program_id string
+#'@retun events 
+sp_payload <- function(sp_transformed, program_id){
+  sp_transformed_list <- split(sp_transformed, seq(nrow(sp_transformed)))
+  
+  payload <- data.frame(program = rep(program_id), nrow(sp_transformed),
+                        orgUnit = sp_transformed$orgUnit,
+                        eventDate = sp_transformed$eventDate, stringsAsFactors = F)
+  payload$dataValues <- lapply(sp_transformed_list, function(x) eventDataValues(x))
+  
+  payload <- payload %>% select(-nrow.sp_transformed.)
+  
+  return(payload)
+  
+}
+
+
+# Begin with Oyo
+
+#' 
+#' Filter out the Events from August to Decemeber 31st
+oyo_sp_to_import <- sp_to_import(oyo_sp)
+
+# tranform the data
+oyo_sp_transformed <- transform_method_programs(oyo_sp_to_import)
+
+# remap the columnas names and orgUnits uids
+oyo_sp_transformed <- des_map(oyo_sp_transformed, program_des = program_des, ng_matched_ous = ng_matched_ous)
+
+# construct payload
+oyo_sp_payload <- sp_payload(oyo_sp_transformed,program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = oyo_sp_payload), auto_unbox = T),
+          content_type_json())
+
+
+#==================
+#' import Edo events
+edo_sp_to_import <- sp_to_import(edo_sp)
+
+#transformed 
+edo_sp_transformed <- transform_method_programs(edo_sp_to_import)
+
+#remap the col and ourUids
+edo_sp_transformed <- des_map(edo_sp_transformed, program_des = program_des, ng_matched_ous = ng_matched_ous)
+
+
+#payload
+edo_sp_payload <- sp_payload(edo_sp_transformed, program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = edo_sp_payload), auto_unbox = T),
+          content_type_json())
+
+
+#============================
+#' Function to construct the sp events 
+#' Step 2,3,4
+sp_events <- function(sp_transformed, program_des, ng_matched_ous,program_id){
+  # tranform the events values to DHIS2 codes
+  sp_transformed <- transform_method_programs(sp_transformed)
+  
+  #remap the colnames and facilities to uids
+  sp_transformed <- des_map(sp_transformed, program_des = program_des, ng_matched_ous = ng_matched_ous)
+  
+  #payload 
+  sp_transformed_payload <- sp_payload(sp_transformed, program_id = program_id)
+  
+  return(sp_transformed_payload)
+  
+  
+}
+
+#=========================
+# filter out sp events to review 
+#'
+#'Function to Extract Data to Reveiw
+#'-Extract Data for 1st of August to Decemeber 2018 with not mathcing facilities.
+#'@param sp_df a data frame with data
+#'@param ng_matched_ous a data frame with matched orgUnits. 
+#'@retun a tibble 
+sp_to_review <- function(sp_df,ng_matched_ous){
+  # Filter sp by date
+  sp_df <- sp_df %>% dplyr::filter(`Date Calculation` >= as.Date("2018-08-01") & `Date Calculation` <= as.Date("2018-12-31")) %>%
+    dplyr::filter(!Facility %in% ng_matched_ous$Facility)
+  return(sp_df)
+}
+
+#Filter out sp events to proceed with 
+#'Function to Extract Data to Reveiw
+#'-Extract Data forr 1st of August to Decemeber 2018
+#'@param sp_df a data frame with data
+#'@param ng_matched_ous a data frame with matched orgUnits. 
+#'@retun a tibble 
+sp_to_proceed <- function(sp_df,ng_matched_ous){
+  # Filter sp by date
+  sp_df <- sp_df %>% dplyr::filter(`Date Calculation` >= as.Date("2018-08-01") & `Date Calculation` <= as.Date("2018-12-31"))
+  sp_df <- sp_df %>% dplyr::filter(Facility %in% ng_matched_ous$Facility)
+  return(sp_df)
+}
+
+#====================================
+
+
+#========================
+# import Akwa ibom _events
+akwa_ibom_sp_to_import <- sp_to_import(akwa_ibom_sp)
+
+#filter out the events with matched orgUnit
+akwa_ibom_sp_to_import_ok <- sp_to_proceed(akwa_ibom_sp_to_import,ng_matched_ous = ng_matched_ous)
+# not to import
+akwa_ibom_sp_to_import_trv <- sp_to_review(akwa_ibom_sp_to_import,ng_matched_ous = ng_matched_ous)
+write.csv(akwa_ibom_sp_to_import_trv, "./output/A360/NG/akwa_ibom_sp_to_review.csv", row.names = F)
+
+# payload 
+akwa_ibom_sp_payload <- sp_events(akwa_ibom_sp_to_import_ok,program_des = program_des,ng_matched_ous = ng_matched_ous,program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = akwa_ibom_sp_payload), auto_unbox = T),
+          content_type_json())
+
+#============================
+#import lagos events
+# convert age column names 
+names(lagos_sp)[16] <- "Age"
+lagos_sp_to_import <- sp_to_import(lagos_sp)
+
+# event to proceed with
+lagos_sp_to_import_ok <- sp_to_proceed(lagos_sp_to_import, ng_matched_ous)
+lagos_sp_to_import_trv <- sp_to_review(lagos_sp_to_import, ng_matched_ous = ng_matched_ous)
+write.csv(lagos_sp_to_import_trv, "./output/A360/NG/lagos_sp_to_review.csv", row.names = F)
+
+# payload
+lagos_sp_payload <- sp_events(lagos_sp_to_import_ok,program_des = program_des,ng_matched_ous = ng_matched_ous,program_id = "b7dXdo2F35y")
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = lagos_sp_payload), auto_unbox = T),
+          content_type_json())
+
+#================================
+
+
+#import delta events
+delta_sp_to_import <- sp_to_import(delta_sp)
+
+#filter
+delta_sp_to_import_ok <- sp_to_proceed(delta_sp_to_import,ng_matched_ous = ng_matched_ous)
+delta_sp_to_import_trv <- sp_to_review(delta_sp_to_import, ng_matched_ous = ng_matched_ous)
+write.csv(delta_sp_to_import_trv,"./output/A360/NG/delta_sp_to_riview.csv", row.names = F)
+
+#payload
+delta_sp_payload <- sp_events(delta_sp_to_import_ok, program_des = program_des, ng_matched_ous = ng_matched_ous, program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = delta_sp_payload), auto_unbox = T),
+          content_type_json())
+
+
+
+#==========================================
+
+#import nasarawa
+# recode 
+names(nasarawa_sp)[26] <- "Received Condoms as a dual Method"
+nasarawa_sp_to_import <- sp_to_import(nasarawa_sp)
+
+#filter 
+nasarawa_sp_to_import_ok <- sp_to_proceed(nasarawa_sp_to_import, ng_matched_ous = ng_matched_ous)
+nasarawa_sp_to_import_trv <- sp_to_review(nasarawa_sp_to_import, ng_matched_ous = ng_matched_ous)
+write.csv(nasarawa_sp_to_import_trv, "./output/A360/NG/nasarawa_sp_to_reiview.csv", row.names = F)
+
+#payload 
+nasarawa_sp_payload <- sp_events(nasarawa_sp_to_import_ok, program_des = program_des, ng_matched_ous = ng_matched_ous, program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = nasarawa_sp_payload), auto_unbox = T),
+          content_type_json())
+
+
+#============================================
+
+# import fct events
+names(fct_sp)[10] <- "Program Entry Point"
+fct_sp_to_import <- sp_to_import(fct_sp)
+
+# filter 
+fct_sp_to_import_ok <- sp_to_proceed(fct_sp_to_import, ng_matched_ous = ng_matched_ous)
+fct_sp_to_import_trv <- sp_to_review(fct_sp_to_import, ng_matched_ous = ng_matched_ous)
+write.csv(fct_sp_to_import_trv, "./output/A360/NG/fct_to_review.csv", row.names = F)
+
+# payload
+fct_sp_payload <- sp_events(fct_sp_to_import_ok, program_des = program_des, ng_matched_ous = ng_matched_ous, program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = fct_sp_payload), auto_unbox = T),
+          content_type_json())
+
+#=================================================
+
+# import ogun events
+ogun_sp_to_import <- sp_to_import(ogun_sp)
+
+# filter
+ogun_sp_to_import_ok <- sp_to_proceed(ogun_sp_to_import, ng_matched_ous = ng_matched_ous)
+ogun_sp_to_import_trv <- sp_to_review(ogun_sp_to_import, ng_matched_ous = ng_matched_ous)
+write.csv(ogun_sp_to_import_trv, "./output/A360/NG/ogun_sp_to_review.csv", row.names = F)
+
+
+# payload
+ogun_sp_payload <- sp_events(ogun_sp_to_import_ok, program_des = program_des, ng_matched_ous = ng_matched_ous, program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = ogun_sp_payload), auto_unbox = T),
+          content_type_json())
+
+#====================================================
+#'
+#'Import kaduna events
+names(kaduna_sp)[10] <- "Program Entry Point"
+kaduna_sp_to_import <- sp_to_import(kaduna_sp)
+
+# filter
+kaduna_sp_to_import_ok <- sp_to_proceed(kaduna_sp_to_import, ng_matched_ous = ng_matched_ous)
+kaduna_sp_to_import_trv <- sp_to_review(kaduna_sp_to_import, ng_matched_ous = ng_matched_ous)
+write.csv(kaduna_sp_to_import_trv, "./output/A360/NG/kaduna_sp_to_review.csv", row.names = F)
+
+# payload
+kaduna_sp_payload <- sp_events(kaduna_sp_to_import_ok, program_des = program_des, ng_matched_ous = ng_matched_ous, program_id = "b7dXdo2F35y")
+
+# send the payload
+d <- POST(paste0(baseurl,"api/events?importStrategy=CREATE"),
+          body = toJSON(list(events = kaduna_sp_payload), auto_unbox = T),
+          content_type_json())
+
+
+
+#==========================
+# Post scripts to Get and Delete events.
+
+
+#----------------------------------------------------------------------
+
+#' 
+#' Get all the events laste updated on 2019-02-22
+r <- httr::GET(paste0(baseurl, "api/events?program=b7dXdo2F35y&lastUpdated=2019-02-23&paging=false"))
+d <- fromJSON(content(r,"text"))
+
+
+
+pb <- txtProgressBar(min = 0, max = length(d$events$event), initial = 0, style = 3)
+for (i in seq_along(d$events$event)) {
+  
+  del_events <- DELETE(paste0(baseurl,"api/events/",d$events$event[i]))
+  Sys.sleep(0.1)
+  setTxtProgressBar(pb,i)
+  close(pb)
+  
+}
+
+
+

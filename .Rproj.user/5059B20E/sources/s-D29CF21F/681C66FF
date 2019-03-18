@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1549203556483.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "681C66FF",
+    "lastKnownWriteTime" : 1549223099,
+    "last_content_update" : 1549223099412,
+    "path" : "~/Documents/PSI Workspace/CEI/Dataviz.R",
+    "project_path" : "Dataviz.R",
+    "properties" : {
+        "cursorPosition" : "10,17",
+        "scrollLine" : "2",
+        "tempName" : "Untitled2"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

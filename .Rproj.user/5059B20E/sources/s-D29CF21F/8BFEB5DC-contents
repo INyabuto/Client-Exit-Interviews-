@@ -1,0 +1,157 @@
+#'
+#' Extract events to converts to USD
+
+## set up ========================================================
+baseurl <- "https://data.psi-mis.org/"
+base = substr(baseurl, 9,24)
+username <- keyringr::get_kc_account(base, type = 'internet')
+password <- keyringr::decrypt_kc_pw(base, type = "internet")
+
+
+source("/Users/isaiahnyabuto/Documents/PSI Workspace/functions.R")
+
+loginDHIS2(baseurl,username,password)
+
+r <- GET(paste0(baseurl,"api/events?program=H0ARClgSPpF&paging=false"))
+d <- fromJSON(content(r,"text"))
+
+all_events <- as_tibble(d$events)
+
+
+# Get CEI DES
+#'Get a list of data lement in CEI program 
+
+cei_des_r <- GET(paste0(baseurl,"api/programStages/ftFE8kmzbTn?fields=name,programStageDataElements[id,name,dataElement[id,name]]"))
+cei_des <- fromJSON(content(cei_des_r,"text"))$programStageDataElements
+
+
+
+#' ==================================
+#' set program id
+
+program_id = "H0ARClgSPpF"
+
+
+#' cambodia payload
+cambodia_payload <- events_payload(baseurl = baseurl,
+                                   ou_id = "NC3WdxGafv5",
+                                   all_events = all_events,
+                                   rate = 3970.42,
+                                   cei_des = cei_des,
+                                   program_id = program_id)
+
+#'Benin payload
+
+benin_payload <- events_payload(baseurl = baseurl,
+                                ou_id = "ydpjItzzx42",
+                                all_events = all_events,
+                                rate = 624.63,
+                                cei_des = cei_des,
+                                program_id = program_id)
+
+# cameroon payload
+cameroon_payload <- events_payload(baseurl = baseurl,
+                                   ou_id = "RUVBtgS12zl",
+                                   all_events = all_events,
+                                   rate = 624.75,
+                                   cei_des = cei_des,
+                                   program_id = program_id)
+# Niger payload
+niger_payload <- events_payload(baseurl = baseurl,
+                                ou_id = "fLUjAswfjNy",
+                                all_events = all_events,
+                                rate = 624.63,
+                                cei_des = cei_des,
+                                program_id = program_id)
+
+# Laos paylaod 
+laos_payload <- events_payload(baseurl = baseurl,
+                                ou_id = "ahlcUyvOgQT",
+                                all_events = all_events,
+                                rate = 7964.77,
+                                cei_des = cei_des,
+                                program_id = program_id)
+
+
+# Nicaragua payload
+nicaragua_payload <- events_payload(baseurl = baseurl,
+                                    ou_id = "qy3vInGGyDB",
+                                    all_events = all_events,
+                                    rate = 28.83,
+                                    cei_des = cei_des,
+                                    program_id = program_id)
+
+# Guatemala payload
+guatemala_payload <- events_payload(baseurl = baseurl,
+                                    ou_id = "NxKJFhKFGbN",
+                                    all_events = all_events,
+                                    rate = 7.351,
+                                    cei_des = cei_des,
+                                    program_id = program_id)
+
+# Burundi payload
+burundi_payload <- events_payload(baseurl = baseurl,
+                                  ou_id = "DgKFsDCpY7X",
+                                  all_events = all_events,
+                                  rate = 1650.35,
+                                  cei_des = cei_des,
+                                  program_id = program_id)
+
+
+
+# Nepal payload
+nepal_payload <- events_payload(baseurl = baseurl,
+                                ou_id = "G4bzdahEfGk",
+                                all_events = all_events,
+                                rate = 107.288,
+                                cei_des = cei_des,
+                                program_id = program_id)
+
+# El Salvador payload
+elsalvador_payload <- events_payload(baseurl = baseurl,
+                                    ou_id = "YypjoDjI7Zg",
+                                    all_events = all_events,
+                                    rate = 1,
+                                    cei_des = cei_des,
+                                    program_id = program_id)
+
+
+# =====================
+# combine the payload
+cei_events_payload <- dplyr::bind_rows(cambodia_payload,
+                                       benin_payload, 
+                                       cameroon_payload,
+                                       niger_payload, 
+                                       laos_payload, 
+                                       nicaragua_payload, 
+                                       guatemala_payload,
+                                       burundi_payload,
+                                       nepal_payload)
+
+
+
+#' spilt the payload into small chunks
+# break the payload into a chunck of 100
+cei_events_payload_chuncks <- split(elsalvador_payload, (as.numeric(row.names(elsalvador_payload)) - 1) %/% 100)
+
+# send
+pb <- txtProgressBar(min = 0, max = length(cei_events_payload_chuncks), initial = 0, style = 3)
+for (i in seq_along(1:length(cei_events_payload_chuncks))) {
+  d <- POST(paste0(baseurl,"api/events?importStrategy=UPDATE"),
+            body = toJSON(list(events = cei_events_payload_chuncks[[i]]), auto_unbox = T),
+            content_type_json())
+  Sys.sleep(300)
+  loginDHIS2(baseurl,username,password)
+  setTxtProgressBar(pb,i)
+}
+close(pb)
+
+
+
+
+
+
+  
+  
+
+

@@ -1,0 +1,70 @@
+#'
+#'Replicate users form data to sandbox
+
+
+source('functions.R')
+
+#'Set up
+baseurl = "https://data.psi-mis.org/"
+base <- substr(baseurl, 9,24) #data 9,24, clone 9,25, latest 9,26, leap 9,24
+username <- keyringr::get_kc_account(base, type = "internet")
+password <- keyringr::decrypt_kc_pw(base, type = "internet")
+
+# dest server
+baseurl.dest = "https://sandbox.psi-mis.org/"
+base.dest = substr(baseurl.dest, 9,27)
+username.dest <- keyringr::get_kc_account(base.dest, type = 'internet')
+password.dest <- keyringr::decrypt_kc_pw(base.dest, type = "internet")
+
+
+# Get user
+url <- paste0(baseurl,"api/users/jAmxPymaj9q")
+
+loginDHIS2(baseurl,username, password)
+
+r <- fromJSON(content(GET(url),'text'))
+
+df <- list(id = r$id,
+           firstName = r$firstName,
+           surname = r$surname,
+           email = r$email)
+
+
+
+orgUnit <- data.frame(id = r$organisationUnits$id, stringsAsFactors = F)
+
+
+
+userCredentials = list(id = r$userCredentials$id,
+                       username = r$userCredentials$username,
+                       password = "Solar123")
+userCredentials$userRoles =  list(r$userCredentials$userRoles)
+df$userCredentials = userCredentials
+#df$organisationUnits = orgUnit
+
+
+#'create xml structure for user
+library(XML)
+dxf <- newXMLDoc()
+metadata <- newXMLNode('metadata', namespaceDefinitions = c("http://dhis2.org/schema/dxf/2.0"), doc = dxf)
+users <- newXMLNode('users',parent = metadata)
+attrbs <- c(id = r$id, name = r$name)
+user <- newXMLNode("user", attrs = attrbs, parent = users)
+surname <- newXMLNode("surname", r$surname, parent = user)
+firstName <- newXMLNode("firstName", r$firstName, parent = user)
+userCredentials <- newXMLNode("userCredentials", attrs = c(id = r$userCredentials$id,
+                                                           created = format(Sys.time(), "%Y-%m-%dT%H:%M:%S+0000")), 
+                              parent = user)
+username.xml<- newXMLNode("username", r$userCredentials$username, parent = userCredentials)
+password.xml <- newXMLNode("password", "Solar123",parent = userCredentials)
+userRoles <- newXMLNode("userRoles",parent = userCredentials)
+for (i in seq_along(r$userCredentials$userRoles$id)) {
+  newXMLNode("userRole", attrs = c(id = r$userCredentials$userRoles$id[i]), parent = userRoles)
+}
+
+
+
+loginDHIS2(baseurl.dest, username.dest, password.dest)
+d <- POST(paste0(baseurl.dest,'api/metadata?&importStrategy=CREATE_AND_UPDATE&atomicMode=NONE'),
+          body = as(dxf,"character"),
+          content_type_xml())

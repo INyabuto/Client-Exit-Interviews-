@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1551857643379.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "C795E34A",
+    "lastKnownWriteTime" : 1539765921,
+    "last_content_update" : 1539765921,
+    "path" : "~/Documents/PSI Workspace/Users.R",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "63,0",
+        "scrollLine" : "33"
+    },
+    "relative_order" : 8,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

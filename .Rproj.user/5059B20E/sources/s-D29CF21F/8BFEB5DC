@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1550146144730.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "8BFEB5DC",
+    "lastKnownWriteTime" : 1552379368,
+    "last_content_update" : 1552899328142,
+    "path" : "~/Documents/PSI Workspace/CEI/CEI events update.R",
+    "project_path" : "CEI events update.R",
+    "properties" : {
+        "cursorPosition" : "149,0",
+        "scrollLine" : "113",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

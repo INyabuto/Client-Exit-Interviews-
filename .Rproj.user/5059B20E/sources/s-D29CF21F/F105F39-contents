@@ -1,0 +1,123 @@
+#'
+#'GFMU Blue print
+
+gfmu <- readxl::read_excel("/Users/isaiahnyabuto/Documents/PSI Workspace/input/GFMU/GFMU.xlsx", sheet = "GFMU")
+
+gfmu_blueprint <- gfmu %>% dplyr::select(c("Country","Grant Name","Component","Module","Indicator","Responsible Principal Recipient"))
+
+#' Get unique rows
+gfmu_blueprint <- unique(gfmu_blueprint)
+
+#' save the file 
+write.csv(gfmu_blueprint, "/Users/isaiahnyabuto/Documents/PSI Workspace/input/GFMU/gfmu_blueprint.csv", row.names = F)
+
+#'
+gfmu_blueprint <- readxl::read_xls("/Users/isaiahnyabuto/Documents/PSI Workspace/input/GFMU/gfmu_blueprint_edited.xls", sheet = "gfmu_blueprint")
+
+gfmu_des <- data.frame(name = unique(gfmu_blueprint$`Indicator short Name`), stringsAsFactors = F)
+write.csv(gfmu_des, "/Users/isaiahnyabuto/Documents/PSI Workspace/input/GFMU/gfmu_des.csv", row.names = F)
+
+source("functions.R")
+
+## set up ========================================================
+baseurl <- "https://sandbox.psi-mis.org/"
+base = substr(baseurl, 9,27)
+username <- keyringr::get_kc_account(base, type = 'internet')
+password <- keyringr::decrypt_kc_pw(base, type = "internet")
+
+
+#'
+#'Get all dataElements uids starting with like MAL GFMU, HIV/AIDs GFMU and TB GFMU
+loginDHIS2(baseurl,username,password)
+
+#MAL GFMU uids
+
+r <- fromJSON(content(GET(paste0(baseurl,"api/29/dataElements?fields=id&filter=name:like:HIV/AIDs%20GFMU")),"text"))$dataElements
+
+
+
+# Send a delet request
+for (i in seq_along(r$id)) {
+  
+  d <- httr::DELETE(paste0(baseurl,"api/dataElements/",r$id[i]))
+  
+}
+
+
+
+#'
+#'Prepare the import
+
+gfmu_blueprint_jm <- readxl::read_xlsx("./input/GFMU/GFMU Blueprint (2).xlsx", sheet = "Data_Elements")
+
+
+# construct the payload 
+
+blueprint_des <- data.frame(id = gfmu_blueprint_jm$`DE_UID *`,
+                            name = gfmu_blueprint_jm$`DE_Name *`,
+                            shortName = gfmu_blueprint_jm$DE_Short_name,
+                            formName = str_trim(gfmu_blueprint_jm$`Form Name`, side = "both"),
+                            domainType = str_trim(str_to_upper(gfmu_blueprint_jm$`Domain Type *`), side = "both"),
+                            aggregationType = str_trim(str_to_upper(gfmu_blueprint_jm$`Aggregation type *`), side = "both"),
+                            valueType = str_trim(str_to_upper(gfmu_blueprint_jm$`Value Type *`), side = "both"),
+                            #categoryCombo = str_trim(gfmu_blueprint_jm$`Cat Combo`, side = "both"),
+                            stringsAsFactors = F)
+
+blueprint_des[is.na(blueprint_des)] <- ""
+
+# remove empyt rows
+blueprint_des <- blueprint_des[!apply(blueprint_des == "", 1, all),]
+
+blueprint_des$valueType[blueprint_des$valueType == "POSITIVE OR ZERO INTEGER"] <- "INTEGER_ZERO_OR_POSITIVE"
+
+
+
+
+loginDHIS2(baseurl,username,password)
+
+d <- httr::POST(paste0(baseurl,"api/metadata?importStrategy=UPDATE"),
+                body = toJSON(list(dataElements = blueprint_des), auto_unbox = T),
+                content_type_json())
+
+
+
+##'
+##'CREATE the payload for sharing 
+
+sharing <- list(object = list(publicAccess = "rw------",
+                              externalAccess = "false",
+                              user = list(id = "jkj1vjLLosx", name = "Isaiah Nyambuka"),
+                              userGroupAccesses = list(list(id = "IEc6Yts7RKk",
+                                                                 access = "rw------"),
+                                                            list(id = "YCk4vA8NZ6H",
+                                                                 access = "r-------")
+                                                            )
+                                   )
+                              )
+
+# Upadate the sharing settings
+
+loginDHIS2(baseurl,username,password)
+
+for (i in seq_along(blueprint_des$id)) {
+  d <- POST(paste0(baseurl,"api/sharing?type=dataElement&id=",blueprint_des$id[i]),
+            body = toJSON(sharing,auto_unbox = T),
+            content_type_json())
+  
+}
+
+
+
+#================================================
+
+# Format the dates 
+
+# baseline endDate
+gfmu <- gfmu %>% mutate(endDate = str_trim(rapply(str_split(gfmu$`Reporting Period`, pattern = "-"), function(x) tail(x,1)), side = "both"))
+# replace the / in the end date 
+gfmu$endDate <- str_replace(gfmu$endDate, pattern = "/", replacement = "-20")
+
+
+
+
+
